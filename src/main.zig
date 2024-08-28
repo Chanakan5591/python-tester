@@ -9,25 +9,54 @@ pub fn main() !void {
     var general_purpose_gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = general_purpose_gpa.allocator();
 
+    var args = try std.process.argsWithAllocator(gpa);
+    defer args.deinit();
+
+    _ = args.skip();
+
+    var python_cmd: []const u8 = "python";
+    var input_pathdir: []const u8 = "testcases";
+    var output_pathdir: []const u8 = "outs";
+
+    while (args.next()) |arg| {
+        if (mem.eql(u8, arg, "--python")) {
+            python_cmd = args.next().?;
+        } else if (mem.eql(u8, arg, "--input")) {
+            input_pathdir = args.next().?;
+        } else if (mem.eql(u8, arg, "--output")) {
+            output_pathdir = args.next().?;
+        }
+    }
+
     // Create 'outs' directory
-    try fs.cwd().makePath("outs");
+    try fs.cwd().makePath(output_pathdir);
 
     // Open the testcases directory
-    var dir = try fs.cwd().openDir("testcases", .{ .iterate = true });
+    var dir = try fs.cwd().openDir(input_pathdir, .{ .iterate = true });
     defer dir.close();
 
+    var entries = std.ArrayList(fs.Dir.Entry).init(gpa);
+    defer entries.deinit();
+
     var it = dir.iterate();
+
     while (try it.next()) |entry| {
+        try entries.append(entry);
+    }
+
+    std.mem.sort(fs.Dir.Entry, entries.items, {}, compareFileNames);
+
+    for (entries.items) |entry| {
         if (entry.kind != .file or !mem.endsWith(u8, entry.name, ".in")) continue;
 
         const caseName = entry.name[0 .. entry.name.len - 3];
         std.debug.print("Running Case {s} ...\n", .{caseName});
 
         // Run main.py with input file
-        const input_path = try std.fmt.allocPrint(gpa, "testcases/{s}", .{entry.name});
-        const output_path = try std.fmt.allocPrint(gpa, "outs/{s}.out", .{caseName});
+        const input_path = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ input_pathdir, entry.name });
+        const output_path = try std.fmt.allocPrint(gpa, "{s}/{s}.out", .{ output_pathdir, caseName });
 
-        var child = process.Child.init(&.{"python", "main.py"}, gpa);
+        var child = process.Child.init(&.{ python_cmd, "main.py" }, gpa);
 
         const input_file = try fs.cwd().openFile(input_path, .{});
         defer input_file.close();
@@ -51,6 +80,7 @@ pub fn main() !void {
             if (bytes_read == 0) break; // End of file
 
             try writer.writeAll(buffer[0..bytes_read]);
+            try writer.writeAll("\n");
         }
 
         // clear buffer
@@ -66,7 +96,7 @@ pub fn main() !void {
         _ = try child.wait();
 
         // Compare output files
-        const expected_path = try std.fmt.allocPrint(gpa, "testcases/{s}.out", .{caseName});
+        const expected_path = try std.fmt.allocPrint(gpa, "{s}/{s}.out", .{ input_pathdir, caseName });
         const actual_path = output_path;
 
         const result = try compareFiles(gpa, expected_path, actual_path);
@@ -82,6 +112,13 @@ pub fn main() !void {
     }
 }
 
+fn compareFileNames(context: void, a: fs.Dir.Entry, b: fs.Dir.Entry) bool {
+    _ = context;
+    const a_num = std.fmt.parseInt(usize, mem.sliceTo(a.name, '.'), 10) catch return false;
+    const b_num = std.fmt.parseInt(usize, mem.sliceTo(b.name, '.'), 10) catch return false;
+    return a_num < b_num;
+}
+
 fn compareFiles(gpa: std.mem.Allocator, file1: []const u8, file2: []const u8) !bool {
     const content1 = try fs.cwd().readFileAlloc(gpa, file1, std.math.maxInt(usize));
     defer gpa.free(content1);
@@ -92,11 +129,38 @@ fn compareFiles(gpa: std.mem.Allocator, file1: []const u8, file2: []const u8) !b
     return mem.eql(u8, content1, content2);
 }
 
-fn showDiff(gpa: std.mem.Allocator, file1: []const u8, file2: []const u8) !void {
-    var child = process.Child.init(&.{ "diff", "-y", "--strip-trailing-cr", file1, file2 }, gpa);
+pub fn showDiff(allocator: std.mem.Allocator, file1: []const u8, file2: []const u8) !void {
+    const content1 = try std.fs.cwd().readFileAlloc(allocator, file1, std.math.maxInt(usize));
+    defer allocator.free(content1);
+    const content2 = try std.fs.cwd().readFileAlloc(allocator, file2, std.math.maxInt(usize));
+    defer allocator.free(content2);
 
-    child.stdout_behavior = .Inherit;
-    child.stderr_behavior = .Inherit;
+    var lines1 = std.mem.tokenize(u8, content1, "\n");
+    var lines2 = std.mem.tokenize(u8, content2, "\n");
 
-    _ = try child.spawnAndWait();
+    const stdout = std.io.getStdOut().writer();
+
+    var line_number: usize = 1;
+    while (true) {
+        const line1 = lines1.next();
+        const line2 = lines2.next();
+
+        if (line1 == null and line2 == null) break;
+
+        if (line1) |l1| {
+            if (line2) |l2| {
+                if (std.mem.eql(u8, l1, l2)) {
+                    try stdout.print("{d:4} | {s}\n", .{ line_number, l1 });
+                } else {
+                    try stdout.print("{d:4} | {s:<40} | {s}\n", .{ line_number, l1, l2 });
+                }
+            } else {
+                try stdout.print("{d:4} | {s:<40} | \n", .{ line_number, l1 });
+            }
+        } else if (line2) |l2| {
+            try stdout.print("{d:4} | {s:<40} | {s}\n", .{ line_number, "", l2 });
+        }
+
+        line_number += 1;
+    }
 }
