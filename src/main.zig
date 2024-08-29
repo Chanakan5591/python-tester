@@ -1,5 +1,4 @@
 const std = @import("std");
-const git = @import("git.zig");
 
 const fs = std.fs;
 const os = std.os;
@@ -9,7 +8,6 @@ const testing = std.testing;
 
 
 pub fn main() !void {
-    git.init();
     var general_purpose_gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = general_purpose_gpa.allocator();
 
