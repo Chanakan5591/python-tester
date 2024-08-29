@@ -102,8 +102,9 @@ pub fn main() !void {
             if (bytes_read == 0) break; // End of file
 
             try writer.writeAll(buffer[0..bytes_read]);
-            try writer.writeAll("\n");
         }
+
+        try writer.writeAll("\n");
 
         // clear buffer
         buffer = undefined;
