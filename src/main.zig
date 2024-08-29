@@ -164,7 +164,7 @@ pub fn showDiff(allocator: mem.Allocator, file1: []const u8, file2: []const u8) 
 
     const stdout = std.io.getStdOut().writer();
 
-    var line_number: u8 = 1; // usize if require larger number supports for line numbers
+    var line_number: usize = 1;
 
     try stdout.print("Line | {s:<40} | {s}\n", .{ "Expected", "Got" });
     try stdout.print("---- | {s:-<40} | {s:-<40}\n", .{ "", "" });
