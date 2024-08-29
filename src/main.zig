@@ -62,14 +62,13 @@ pub fn main() !void {
     var it = dir.iterate();
 
     while (try it.next()) |entry| {
+        if (entry.kind != .file or !mem.endsWith(u8, entry.name, ".in")) continue;
         try entries.append(entry);
     }
 
-    std.mem.sort(fs.Dir.Entry, entries.items, {}, compareFileNames);
+    mem.sort(fs.Dir.Entry, entries.items, {}, compareFileNames);
 
     for (entries.items) |entry| {
-        if (entry.kind != .file or !mem.endsWith(u8, entry.name, ".in")) continue;
-
         const caseName = entry.name[0 .. entry.name.len - 3];
         try stdout.print("Running Case \x1b[1;36m{s}\x1b[0m...\n", .{caseName});
 
@@ -144,7 +143,7 @@ fn compareFileNames(context: void, a: fs.Dir.Entry, b: fs.Dir.Entry) bool {
     return a_num < b_num;
 }
 
-fn compareFiles(gpa: std.mem.Allocator, file1: []const u8, file2: []const u8) !bool {
+fn compareFiles(gpa: mem.Allocator, file1: []const u8, file2: []const u8) !bool {
     const content1 = try fs.cwd().readFileAlloc(gpa, file1, std.math.maxInt(usize));
     defer gpa.free(content1);
 
@@ -154,18 +153,18 @@ fn compareFiles(gpa: std.mem.Allocator, file1: []const u8, file2: []const u8) !b
     return mem.eql(u8, content1, content2);
 }
 
-pub fn showDiff(allocator: std.mem.Allocator, file1: []const u8, file2: []const u8) !void {
+pub fn showDiff(allocator: mem.Allocator, file1: []const u8, file2: []const u8) !void {
     const content1 = try std.fs.cwd().readFileAlloc(allocator, file1, std.math.maxInt(usize));
     defer allocator.free(content1);
     const content2 = try std.fs.cwd().readFileAlloc(allocator, file2, std.math.maxInt(usize));
     defer allocator.free(content2);
 
-    var lines1 = std.mem.tokenizeSequence(u8, content1, "\n");
-    var lines2 = std.mem.tokenizeSequence(u8, content2, "\n");
+    var lines1 = mem.tokenizeSequence(u8, content1, "\n");
+    var lines2 = mem.tokenizeSequence(u8, content2, "\n");
 
     const stdout = std.io.getStdOut().writer();
 
-    var line_number: usize = 1;
+    var line_number: u8 = 1; // usize if require larger number supports for line numbers
 
     try stdout.print("Line | {s:<40} | {s}\n", .{ "Expected", "Got" });
     try stdout.print("---- | {s:-<40} | {s:-<40}\n", .{ "", "" });
@@ -178,7 +177,7 @@ pub fn showDiff(allocator: std.mem.Allocator, file1: []const u8, file2: []const 
 
         if (line1) |l1| {
             if (line2) |l2| {
-                if (std.mem.eql(u8, l1, l2)) {
+                if (mem.eql(u8, l1, l2)) {
                     try stdout.print("{d:4} | {s:<40} | {s}\n", .{ line_number, l1, l2 });
                 } else {
                     try stdout.print("{d:4} | {s:<40} | \x1b[1;31m{s}\x1b[0m\n", .{ line_number, l1, l2 });
