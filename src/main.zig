@@ -52,7 +52,7 @@ pub fn main() !void {
         if (entry.kind != .file or !mem.endsWith(u8, entry.name, ".in")) continue;
 
         const caseName = entry.name[0 .. entry.name.len - 3];
-        std.debug.print("Running Case {s} ...\n", .{caseName});
+        std.log.info("Running Case {s} ...", .{caseName});
 
         // Run main.py with input file
         const input_path = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ input_pathdir, entry.name });
@@ -104,9 +104,9 @@ pub fn main() !void {
         const result = try compareFiles(gpa, expected_path, actual_path);
 
         if (result) {
-            std.debug.print("Results: Matched, Good job!\n", .{});
+            std.log.info("Results: Matched, Good job!", .{});
         } else {
-            std.debug.print("Results: NOT Matched, Please check your code!\n", .{});
+            std.log.err("Results: NOT Matched, Please check your code!", .{});
             try showDiff(gpa, expected_path, actual_path);
         }
 
@@ -143,6 +143,10 @@ pub fn showDiff(allocator: std.mem.Allocator, file1: []const u8, file2: []const 
     const stdout = std.io.getStdOut().writer();
 
     var line_number: usize = 1;
+
+    try stdout.print("Line | {s:<40} | {s}\n", .{"Expected", "Got"});
+    try stdout.print("---- | {s:-<40} | {s:-<40}\n", .{"", ""});
+
     while (true) {
         const line1 = lines1.next();
         const line2 = lines2.next();
