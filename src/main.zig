@@ -15,6 +15,8 @@ pub fn main() !void {
     var general_purpose_gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = general_purpose_gpa.allocator();
 
+    const stdout = std.io.getStdOut().writer();
+
     defer {
         const deinit_status = general_purpose_gpa.deinit();
         if (deinit_status == .leak) {
@@ -30,14 +32,20 @@ pub fn main() !void {
     var python_cmd: []const u8 = "python";
     var input_pathdir: []const u8 = "testcases";
     var output_pathdir: []const u8 = "outs";
+    var python_filename: []const u8 = "main.py";
 
     while (args.next()) |arg| {
-        if (mem.eql(u8, arg, "--python")) {
+        if (mem.eql(u8, arg, "--python") or mem.eql(u8, arg, "-p")) {
             python_cmd = args.next().?;
-        } else if (mem.eql(u8, arg, "--input")) {
+        } else if (mem.eql(u8, arg, "--input") or mem.eql(u8, arg, "-i")) {
             input_pathdir = args.next().?;
-        } else if (mem.eql(u8, arg, "--output")) {
+        } else if (mem.eql(u8, arg, "--output") or mem.eql(u8, arg, "-o")) {
             output_pathdir = args.next().?;
+        } else if (mem.eql(u8, arg, "--file") or mem.eql(u8, arg, "-f")) {
+            python_filename = args.next().?;
+        } else {
+            try stdout.print("Unknown argument: \x1b[1;31m{s}\x1b[0m\n", .{arg});
+            return;
         }
     }
 
@@ -63,7 +71,7 @@ pub fn main() !void {
         if (entry.kind != .file or !mem.endsWith(u8, entry.name, ".in")) continue;
 
         const caseName = entry.name[0 .. entry.name.len - 3];
-        std.log.info("Running Case \x1b[1;36m{s}\x1b[0m...", .{caseName});
+        try stdout.print("Running Case \x1b[1;36m{s}\x1b[0m...\n", .{caseName});
 
         // Run main.py with input file
         const input_path = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ input_pathdir, entry.name });
@@ -71,7 +79,7 @@ pub fn main() !void {
         const output_path = try std.fmt.allocPrint(gpa, "{s}/{s}.out", .{ output_pathdir, caseName });
         defer gpa.free(output_path);
 
-        var child = process.Child.init(&.{ python_cmd, "main.py" }, gpa);
+        var child = process.Child.init(&.{ python_cmd, python_filename }, gpa);
 
         const input_file = try fs.cwd().openFile(input_path, .{});
         defer input_file.close();
@@ -119,9 +127,9 @@ pub fn main() !void {
         const result = try compareFiles(gpa, expected_path, actual_path);
 
         if (result) {
-            std.log.info("Results: \x1b[1;32mMatched\x1b[0m, Good job!", .{});
+            try stdout.print("Results: \x1b[1;32mMatched\x1b[0m, Good job!\n", .{});
         } else {
-            std.log.err("Results: \x1b[1;31mNOT\x1b[0m Matched, Please check your code!", .{});
+            std.log.err("Results: \x1b[1;31mNOT\x1b[0m Matched, Please check your code!\n", .{});
             try showDiff(gpa, expected_path, actual_path);
         }
 
@@ -179,7 +187,7 @@ pub fn showDiff(allocator: std.mem.Allocator, file1: []const u8, file2: []const 
                 try stdout.print("{d:4} | {s:<40} | \n", .{ line_number, l1 });
             }
         } else if (line2) |l2| {
-            try stdout.print("{d:4} | {s:<40} | {s}\n", .{ line_number, "", l2 });
+            try stdout.print("{d:4} | {s:<40} | \x1b[1;33m{s}\x1b[0m\n", .{ line_number, "", l2 });
         }
 
         line_number += 1;
