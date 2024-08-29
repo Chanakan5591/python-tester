@@ -11,6 +11,14 @@ pub fn main() !void {
     var general_purpose_gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = general_purpose_gpa.allocator();
 
+    defer {
+            const deinit_status = general_purpose_gpa.deinit();
+            //fail test; can't try in defer as defer is executed after we return
+            if (deinit_status == .leak) {
+                std.debug.print("Memory leak detected\n", .{});
+            }
+        }
+
     var args = try std.process.argsWithAllocator(gpa);
     defer args.deinit();
 
@@ -58,6 +66,11 @@ pub fn main() !void {
         const input_path = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ input_pathdir, entry.name });
         const output_path = try std.fmt.allocPrint(gpa, "{s}/{s}.out", .{ output_pathdir, caseName });
 
+        defer {
+            gpa.free(input_path);
+            gpa.free(output_path);
+        }
+
         var child = process.Child.init(&.{ python_cmd, "main.py" }, gpa);
 
         const input_file = try fs.cwd().openFile(input_path, .{});
@@ -99,6 +112,8 @@ pub fn main() !void {
 
         // Compare output files
         const expected_path = try std.fmt.allocPrint(gpa, "{s}/{s}.out", .{ input_pathdir, caseName });
+        defer gpa.free(expected_path);
+
         const actual_path = output_path;
 
         const result = try compareFiles(gpa, expected_path, actual_path);
