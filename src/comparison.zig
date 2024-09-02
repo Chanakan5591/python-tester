@@ -58,8 +58,12 @@ test "showDiff correctly shows differences between files" {
     var output_stream = std.io.fixedBufferStream(&buffer);
 
     // Create test files
-    const file1_path = "src/test_resources/matchingA.txt";
-    const file2_path = "src/test_resources/misMatchedB.txt";
+    const file1_path = try std.fs.path.join(allocator, &[_][]const u8{ "src", "test_resources", "matchingA.txt" });
+    const file2_path = try std.fs.path.join(allocator, &[_][]const u8{ "src", "test_resources", "misMatchedB.txt" });
+
+    defer allocator.free(file1_path);
+    defer allocator.free(file2_path);
+
     // Run showDiff
     try showDiff(allocator, output_stream.writer(), file1_path, file2_path);
 
@@ -74,20 +78,28 @@ test "showDiff correctly shows differences between files" {
 
 test "compareFiles Identical Files Matched" {
     const allocator = testing.allocator;
-    const first_file_path = "src/test_resources/matchingA.txt";
-    const second_file_path = "src/test_resources/matchingB.txt";
 
-    const result = try compareFiles(allocator, first_file_path, second_file_path);
+    const file1_path = try std.fs.path.join(allocator, &[_][]const u8{ "src", "test_resources", "matchingA.txt" });
+    const file2_path = try std.fs.path.join(allocator, &[_][]const u8{ "src", "test_resources", "matchingB.txt" });
+
+    defer allocator.free(file1_path);
+    defer allocator.free(file2_path);
+
+    const result = try compareFiles(allocator, file1_path, file2_path);
 
     try testing.expect(result);
 }
 
 test "compareFiles Different Files Not Matched" {
     const allocator = testing.allocator;
-    const first_file_path = "src/test_resources/matchingA.txt";
-    const second_file_path = "src/test_resources/misMatchedB.txt";
 
-    const result = try compareFiles(allocator, first_file_path, second_file_path);
+    const file1_path = try std.fs.path.join(allocator, &[_][]const u8{ "src", "test_resources", "matchingA.txt" });
+    const file2_path = try std.fs.path.join(allocator, &[_][]const u8{ "src", "test_resources", "matchingB.txt" });
+
+    defer allocator.free(file1_path);
+    defer allocator.free(file2_path);
+
+    const result = try compareFiles(allocator, file1_path, file2_path);
 
     try testing.expect(!result);
 }
