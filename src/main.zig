@@ -1,5 +1,9 @@
 const std = @import("std");
+const comparison = @import("comparison");
 
+const showDiff = comparison.showDiff;
+const compareFileNames = comparison.compareFileNames;
+const compareFiles = comparison.compareFiles;
 const fs = std.fs;
 const os = std.os;
 const process = std.process;
@@ -106,9 +110,6 @@ pub fn main() !void {
 
         try writer.writeAll("\n");
 
-        // clear buffer
-        buffer = undefined;
-
         while (true) {
             const bytes_read = try child.stdout.?.read(&buffer);
             if (bytes_read == 0) break; // End of file
@@ -130,66 +131,9 @@ pub fn main() !void {
             try stdout.print("Results: \x1b[1;32mMatched\x1b[0m, Good job!\n", .{});
         } else {
             std.log.err("Results: \x1b[1;31mNOT\x1b[0m Matched, Please check your code!\n", .{});
-            try showDiff(gpa, expected_path, actual_path);
+            try showDiff(gpa, stdout, expected_path, actual_path);
         }
 
         std.debug.print("\n", .{});
-    }
-}
-
-fn compareFileNames(context: void, a: fs.Dir.Entry, b: fs.Dir.Entry) bool {
-    _ = context;
-    const a_num = std.fmt.parseInt(usize, mem.sliceTo(a.name, '.'), 10) catch return false;
-    const b_num = std.fmt.parseInt(usize, mem.sliceTo(b.name, '.'), 10) catch return false;
-    return a_num < b_num;
-}
-
-fn compareFiles(gpa: mem.Allocator, file1: []const u8, file2: []const u8) !bool {
-    const content1 = try fs.cwd().readFileAlloc(gpa, file1, std.math.maxInt(usize));
-    defer gpa.free(content1);
-
-    const content2 = try fs.cwd().readFileAlloc(gpa, file2, std.math.maxInt(usize));
-    defer gpa.free(content2);
-
-    return mem.eql(u8, content1, content2);
-}
-
-pub fn showDiff(allocator: mem.Allocator, file1: []const u8, file2: []const u8) !void {
-    const content1 = try std.fs.cwd().readFileAlloc(allocator, file1, std.math.maxInt(usize));
-    defer allocator.free(content1);
-    const content2 = try std.fs.cwd().readFileAlloc(allocator, file2, std.math.maxInt(usize));
-    defer allocator.free(content2);
-
-    var lines1 = mem.tokenizeSequence(u8, content1, "\n");
-    var lines2 = mem.tokenizeSequence(u8, content2, "\n");
-
-    const stdout = std.io.getStdOut().writer();
-
-    var line_number: usize = 1;
-
-    try stdout.print("Line | {s:<40} | {s}\n", .{ "Expected", "Got" });
-    try stdout.print("---- | {s:-<40} | {s:-<40}\n", .{ "", "" });
-
-    while (true) {
-        const line1 = lines1.next();
-        const line2 = lines2.next();
-
-        if (line1 == null and line2 == null) break;
-
-        if (line1) |l1| {
-            if (line2) |l2| {
-                if (mem.eql(u8, l1, l2)) {
-                    try stdout.print("{d:4} | {s:<40} | {s}\n", .{ line_number, l1, l2 });
-                } else {
-                    try stdout.print("{d:4} | {s:<40} | \x1b[1;31m{s}\x1b[0m\n", .{ line_number, l1, l2 });
-                }
-            } else {
-                try stdout.print("{d:4} | {s:<40} | \n", .{ line_number, l1 });
-            }
-        } else if (line2) |l2| {
-            try stdout.print("{d:4} | {s:<40} | \x1b[1;33m{s}\x1b[0m\n", .{ line_number, "", l2 });
-        }
-
-        line_number += 1;
     }
 }
