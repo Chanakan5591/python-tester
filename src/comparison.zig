@@ -94,7 +94,7 @@ test "compareFiles Different Files Not Matched" {
     const allocator = testing.allocator;
 
     const file1_path = try std.fs.path.join(allocator, &[_][]const u8{ "src", "test_resources", "matchingA.txt" });
-    const file2_path = try std.fs.path.join(allocator, &[_][]const u8{ "src", "test_resources", "matchingB.txt" });
+    const file2_path = try std.fs.path.join(allocator, &[_][]const u8{ "src", "test_resources", "misMatchedB.txt" });
 
     defer allocator.free(file1_path);
     defer allocator.free(file2_path);
