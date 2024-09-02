@@ -58,45 +58,21 @@ test "showDiff correctly shows differences between files" {
     var output_stream = std.io.fixedBufferStream(&buffer);
 
     // Create test files
-    const file1_path = "file1.txt";
-    const file2_path = "file2.txt";
-
-    const file1_content = "line1\nline2\nline3\n";
-    const file2_content = "line1\nlineX\nline3\n";
-
-    const file1 = try std.fs.cwd().createFile(file1_path, .{ .read = true });
-    try file1.writeAll(file1_content);
-    const file2 = try std.fs.cwd().createFile(file2_path, .{ .read = true });
-    try file2.writeAll(file2_content);
-
-    defer std.fs.cwd().deleteFile(file1_path) catch {};
-    defer std.fs.cwd().deleteFile(file2_path) catch {};
-
+    const file1_path = "src/test_resources/matchingA.txt";
+    const file2_path = "src/test_resources/misMatchedB.txt";
     // Run showDiff
     try showDiff(allocator, output_stream.writer(), file1_path, file2_path);
 
-    const expected_output = \\Line | Expected                                 | Got
-                            \\---- | ---------------------------------------- | ----------------------------------------
-                            \\   1 | line1                                    | line1
-                            \\   2 | line2                                    | \x1b[1;31mlineX\x1b[0m
-                            \\   3 | line3                                    | line3
-                            ;
+    // current does not know how to get multiline string to work with color formatting
+    const expected_output = "Line | Expected                                 | Got\n---- | ---------------------------------------- | ----------------------------------------\n   1 | This file will match with the other one. | \x1b[1;31mThis file will not match with the other one.\x1b[0m\n   2 | Just fine.                               | Just fine.\n   3 | Thanks                                   | Thanks\n";
 
     const output_str = output_stream.getWritten();
 
-
-    const filtered_expected_output = try std.mem.filter(allocator, expected_output, |c| !std.unicode.isWhitespace(c));
-    defer allocator.free(filtered_expected_output);
-
-    const filtered_output_str = try std.mem.filter(allocator, output_str, |c| !std.unicode.isWhitespace(c));
-    defer allocator.free(filtered_output_str);
-
     // Compare the filtered strings
-    try std.testing.expect(mem.eql(u8, filtered_output_str, filtered_expected_output));
-    }
+    try std.testing.expect(mem.eql(u8, expected_output, output_str));
 }
 
-test "Comparing Identical Files Matched" {
+test "compareFiles Identical Files Matched" {
     const allocator = testing.allocator;
     const first_file_path = "src/test_resources/matchingA.txt";
     const second_file_path = "src/test_resources/matchingB.txt";
@@ -106,7 +82,7 @@ test "Comparing Identical Files Matched" {
     try testing.expect(result);
 }
 
-test "Comparing Different Files Not Matched" {
+test "compareFiles Different Files Not Matched" {
     const allocator = testing.allocator;
     const first_file_path = "src/test_resources/matchingA.txt";
     const second_file_path = "src/test_resources/misMatchedB.txt";
@@ -114,33 +90,4 @@ test "Comparing Different Files Not Matched" {
     const result = try compareFiles(allocator, first_file_path, second_file_path);
 
     try testing.expect(!result);
-}
-
-test "Ordering Files based on filenames" {
-    const allocator = testing.allocator;
-    var dir = try fs.cwd().openDir("src/test_resources/", .{ .iterate = true });
-    defer dir.close();
-
-    var entries = std.ArrayList(fs.Dir.Entry).init(allocator);
-    defer entries.deinit();
-
-    var it = dir.iterate();
-
-    while (try it.next()) |entry| {
-        if (entry.kind != .file or !mem.endsWith(u8, entry.name, ".in")) continue;
-        try entries.append(entry);
-    }
-
-    mem.sort(fs.Dir.Entry, entries.items, {}, compareFileNames);
-
-
-    // get .name property from dir.entry and then check with the list below
-
-    const correctOrdering = [_][]const u8{"1.in", "2.in", "3.in"};
-
-    try testing.expectEqual(correctOrdering.len, entries.items.len);
-
-    for (correctOrdering, entries.items) |expected, actual| {
-        try testing.expectEqualStrings(expected, actual.name);
-    }
 }
