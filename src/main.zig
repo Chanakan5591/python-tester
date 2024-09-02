@@ -77,9 +77,9 @@ pub fn main() !void {
         try stdout.print("Running Case \x1b[1;36m{s}\x1b[0m...\n", .{caseName});
 
         // Run main.py with input file
-        const input_path = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ input_pathdir, entry.name });
+        const input_path = try std.fs.path.join(gpa, &[_][]const u8{input_pathdir, entry.name});
         defer gpa.free(input_path);
-        const output_path = try std.fmt.allocPrint(gpa, "{s}/{s}.out", .{ output_pathdir, caseName });
+        const output_path = try std.fs.path.join(gpa, &[_][]const u8{output_pathdir, caseName});
         defer gpa.free(output_path);
 
         var child = process.Child.init(&.{ python_cmd, python_filename }, gpa);
@@ -120,8 +120,12 @@ pub fn main() !void {
         _ = try child.wait();
 
         // Compare output files
-        const expected_path = try std.fmt.allocPrint(gpa, "{s}/{s}.out", .{ input_pathdir, caseName });
+        const out_filename = try std.fmt.allocPrint(gpa, "{s}.out", .{caseName});
+        const expected_path = try std.fs.path.join(gpa, &[_][]const u8{input_pathdir, out_filename});
+
+        defer gpa.free(out_filename);
         defer gpa.free(expected_path);
+
 
         const actual_path = output_path;
 
