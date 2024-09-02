@@ -16,6 +16,9 @@ pub const std_options = .{
 };
 
 pub fn main() !void {
+    var success_count: u8 = 0;
+    var fail_count: u8 = 0;
+
     var general_purpose_gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = general_purpose_gpa.allocator();
 
@@ -126,17 +129,27 @@ pub fn main() !void {
         defer gpa.free(out_filename);
         defer gpa.free(expected_path);
 
-        const actual_path = output_path;
+        const result = try compareFiles(gpa, expected_path, output_path);
 
-        const result = try compareFiles(gpa, expected_path, actual_path);
 
         if (result) {
             try stdout.print("Results: \x1b[1;32mMatched\x1b[0m, Good job!\n", .{});
+            success_count += 1;
         } else {
             std.log.err("Results: \x1b[1;31mNOT\x1b[0m Matched, Please check your code!\n", .{});
-            try showDiff(gpa, stdout, expected_path, actual_path);
+            fail_count += 1;
+            try showDiff(gpa, stdout, expected_path, output_path);
         }
 
-        std.debug.print("\n", .{});
+           std.debug.print("\n", .{});
     }
+
+    const green = "\x1b[32m";
+    const red = "\x1b[31m";
+    const reset = "\x1b[0m";
+
+    std.debug.print("Total Successes: {s}{d}{s}\nTotal Failures:  {s}{d}{s}\n", .{
+        green, success_count, reset,
+        red, fail_count, reset
+    });
 }
