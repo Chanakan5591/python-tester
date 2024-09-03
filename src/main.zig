@@ -70,12 +70,17 @@ pub fn main() !void {
 
     while (try it.next()) |entry| {
         if (entry.kind != .file or !mem.endsWith(u8, entry.name, ".in")) continue;
-        try entries.append(entry);
+        // try entries.append(entry); // cannot be append right away due to windows bug (maybe due to how windows handle files)
+        const entryCopy = try gpa.dupe(u8, entry.name);
+        try entries.append(.{ .name = entryCopy, .kind = entry.kind });
     }
 
-    mem.sort(fs.Dir.Entry, entries.items, {}, compareFileNames);
+    mem.sort(fs.Dir.Entry, entries.items, {}, compareFileNames); // culprit for "5.ou" in every element in entries
 
     for (entries.items) |entry| {
+        // free entry.name after use of each loop
+        defer gpa.free(entry.name);
+
         const caseName = entry.name[0 .. entry.name.len - 3];
         try stdout.print("Running Case \x1b[1;36m{s}\x1b[0m...\n", .{caseName});
 
@@ -131,7 +136,6 @@ pub fn main() !void {
 
         const result = try compareFiles(gpa, expected_path, output_path);
 
-
         if (result) {
             try stdout.print("Results: \x1b[1;32mMatched\x1b[0m, Good job!\n", .{});
             success_count += 1;
@@ -141,15 +145,12 @@ pub fn main() !void {
             try showDiff(gpa, stdout, expected_path, output_path);
         }
 
-           std.debug.print("\n", .{});
+        std.debug.print("\n", .{});
     }
 
     const green = "\x1b[32m";
     const red = "\x1b[31m";
     const reset = "\x1b[0m";
 
-    std.debug.print("Total Successes: {s}{d}{s}\nTotal Failures:  {s}{d}{s}\n", .{
-        green, success_count, reset,
-        red, fail_count, reset
-    });
+    std.debug.print("Total Successes: {s}{d}{s}\nTotal Failures:  {s}{d}{s}\n", .{ green, success_count, reset, red, fail_count, reset });
 }

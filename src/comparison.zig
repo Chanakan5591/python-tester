@@ -5,10 +5,12 @@ const mem = std.mem;
 const fs = std.fs;
 
 pub fn showDiff(allocator: mem.Allocator, writer: anytype, file1: []const u8, file2: []const u8) !void {
-    const content1 = try std.fs.cwd().readFileAlloc(allocator, file1, std.math.maxInt(usize));
+    const content1 = try readFileNormalized(allocator, file1);
     defer allocator.free(content1);
-    const content2 = try std.fs.cwd().readFileAlloc(allocator, file2, std.math.maxInt(usize));
+
+    const content2 = try readFileNormalized(allocator, file2);
     defer allocator.free(content2);
+
     var lines1 = mem.tokenizeSequence(u8, content1, "\n");
     var lines2 = mem.tokenizeSequence(u8, content2, "\n");
     var line_number: usize = 1;
@@ -42,11 +44,38 @@ pub fn compareFileNames(context: void, a: fs.Dir.Entry, b: fs.Dir.Entry) bool {
     return a_num < b_num;
 }
 
+// required for converting CRLF to LF for Windows/DOS file
+fn readFileNormalized(gpa: mem.Allocator, path: []const u8) ![]u8 {
+    var file = try fs.cwd().openFile(path, .{});
+    defer file.close();
+
+    const content = try file.readToEndAlloc(gpa, std.math.maxInt(usize));
+
+    // Normalize line endings
+    var normalized = try gpa.alloc(u8, content.len);
+    errdefer gpa.free(normalized);
+
+    var i: usize = 0;
+    var j: usize = 0;
+    while (i < content.len) : (i += 1) {
+        if (content[i] == '\r' and i + 1 < content.len and content[i + 1] == '\n') {
+            normalized[j] = '\n';
+            i += 1;
+        } else {
+            normalized[j] = content[i];
+        }
+        j += 1;
+    }
+
+    gpa.free(content);
+    return gpa.realloc(normalized, j);
+}
+
 pub fn compareFiles(gpa: mem.Allocator, file1: []const u8, file2: []const u8) !bool {
-    const content1 = try fs.cwd().readFileAlloc(gpa, file1, std.math.maxInt(usize));
+    const content1 = try readFileNormalized(gpa, file1);
     defer gpa.free(content1);
 
-    const content2 = try fs.cwd().readFileAlloc(gpa, file2, std.math.maxInt(usize));
+    const content2 = try readFileNormalized(gpa, file2);
     defer gpa.free(content2);
 
     return mem.eql(u8, content1, content2);
