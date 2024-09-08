@@ -148,8 +148,8 @@ pub fn main() !void {
         std.debug.print("\n", .{});
     }
 
-    const green = "\x1b[32m";
-    const red = "\x1b[31m";
+    const green = "\x1b[1;32m";
+    const red = "\x1b[1;31m";
     const reset = "\x1b[0m";
 
     std.debug.print("Total Successes: {s}{d}{s}\nTotal Failures:  {s}{d}{s}\n", .{ green, success_count, reset, red, fail_count, reset });
